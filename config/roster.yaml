@@ -1,14 +1,14 @@
-# Dated roster. Exact snapshot IDs only; a VERIFY left in this file fails selftest.
-# Filled in the step 1 session (two entries) and the step 6 session (ten entries).
-date: VERIFY
+date: 2026-09-22
 models:
-  - snapshot: anthropic/VERIFY
+  - snapshot: anthropic/claude-sonnet-4-5-20250929
     provider: anthropic
     effort: high
-  - snapshot: openrouter/VERIFY
+  - snapshot: openrouter/qwen/qwen3.5-plus-02-15
     provider: openrouter
-    upstream_provider: VERIFY
+    upstream_provider: alibaba
 defaults:
   temperature: 0.0
   seed: 20261012
   repeats: 1
+  token_limit_per_sample: 30000
+  time_limit_s: 600

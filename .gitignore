@@ -1,8 +1,10 @@
-.venv/
-__pycache__/
-*.pyc
 .env
-runs/
-results/results.sqlite
-reports/calibration_*.md
+.venv/
+.uv-cache/
+.uv-python/
+.local-appdata/
+.inspect-trace.log*
+__pycache__/
 .pytest_cache/
+runs/*.eval
+results/results.sqlite
