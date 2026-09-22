@@ -1,0 +1,11 @@
+# Judge is always a different vendor than the model under test. Exact snapshot IDs, filled in step 4.
+date: VERIFY
+by_provider_under_test:
+  anthropic: openai/VERIFY
+  openai: anthropic/VERIFY
+  google: anthropic/VERIFY
+  openrouter: anthropic/VERIFY
+  ollama: anthropic/VERIFY
+judge_temperature: 0.0
+position_swap: true
+disagreement_note_threshold: 0.3

@@ -1,0 +1,14 @@
+# Dated roster. Exact snapshot IDs only; a VERIFY left in this file fails selftest.
+# Filled in the step 1 session (two entries) and the step 6 session (ten entries).
+date: VERIFY
+models:
+  - snapshot: anthropic/VERIFY
+    provider: anthropic
+    effort: high
+  - snapshot: openrouter/VERIFY
+    provider: openrouter
+    upstream_provider: VERIFY
+defaults:
+  temperature: 0.0
+  seed: 20261012
+  repeats: 1

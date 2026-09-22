@@ -1,0 +1,21 @@
+# modelwatch settings. Dated values live in roster.yaml and prices.yaml.
+[guard]
+eur_per_run = 300
+
+[run]
+repeats = 5
+temperature = 0.0
+token_limit_per_sample = 30000
+time_limit_s = 600
+
+[run.coding]
+token_limit_per_sample = 60000
+time_limit_s = 900
+message_limit = 40
+
+[connections]
+anthropic = 4
+openai = 4
+google = 4
+openrouter = 4
+ollama = 1
