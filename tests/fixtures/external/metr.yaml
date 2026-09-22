@@ -1,0 +1,7 @@
+benchmark_name: METR-Horizon-v1.1
+results:
+  fixture_alpha:
+    release_date: 2026-01-02
+    metrics:
+      p50_horizon_length: {estimate: 2.5}
+      p80_horizon_length: {estimate: 1.0}

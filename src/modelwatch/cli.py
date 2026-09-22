@@ -19,6 +19,7 @@ os.environ.setdefault("INSPECT_TRACE_FILE", str(ROOT / ".inspect-trace.log"))
 from inspect_ai import eval as inspect_eval
 
 from modelwatch.flatten import flatten_run
+from modelwatch.external import aa, epoch, livebench, metr
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -43,10 +44,20 @@ def _latest_run_folder() -> Path:
 def run(
     task: str = typer.Option(..., "--task"),
     roster: Path = typer.Option(Path("config/roster.yaml"), "--roster"),
+    repeats: int | None = typer.Option(None, "--repeats", min=1),
 ) -> None:
     """Run one task against every model in a roster."""
-    if task != "hello":
-        raise typer.BadParameter("Step 1 supports only the hello task")
+    task_files = {
+        "hello": [(Path("tasks") / "hello.py", "hello")],
+        "hub_edits": [(Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits")],
+        "injection": [(Path("src/modelwatch/tasks/injection.py"), "injection")],
+        "anchor": [
+            (Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits"),
+            (Path("src/modelwatch/tasks/injection.py"), "injection"),
+        ],
+    }
+    if task not in task_files:
+        raise typer.BadParameter("task must be hello, hub_edits, injection, or anchor")
     roster_path = roster if roster.is_absolute() else ROOT / roster
     roster_data = _load_yaml(roster_path)
     key_by_provider = {
@@ -75,49 +86,60 @@ def run(
     run_folder.mkdir(parents=True, exist_ok=False)
 
     for entry in roster_data["models"]:
-        model_args: dict[str, Any] = {}
-        if entry["provider"] == "openrouter":
-            model_args["provider"] = {
-                "only": [entry["upstream_provider"]],
-                "allow_fallbacks": False,
-            }
-        extra_headers = None
-        if entry["provider"] == "anthropic":
-            extra_headers = {
-                "anthropic-workspace-id": os.environ["ANTHROPIC_WORKSPACE_ID"]
-            }
-        inspect_eval(
-            tasks=str(Path("tasks") / "hello.py"),
-            model=entry["snapshot"],
-            model_args=model_args,
-            metadata={
-                "modelwatch_run_id": run_id,
-                "taskset_version": taskset_version,
-                "roster_date": str(roster_data["date"]),
-                "area": "hello",
-                "provider": entry["provider"],
-                "upstream_provider": entry.get("upstream_provider"),
-                "endpoint": entry.get("endpoint"),
-                "effort": entry.get("effort"),
-            },
-            log_dir=str(run_folder),
-            log_format="eval",
-            display="plain",
-            epochs=int(defaults["repeats"]),
-            temperature=float(defaults["temperature"]),
-            seed=int(defaults["seed"]),
-            token_limit=int(defaults["token_limit_per_sample"]),
-            time_limit=int(defaults["time_limit_s"]),
-            effort=entry.get("effort") if entry["provider"] != "anthropic" else None,
-            extra_headers=extra_headers,
-        )
+        for task_file, area in task_files[task]:
+            model_args: dict[str, Any] = {}
+            if entry["provider"] == "openrouter":
+                model_args["provider"] = {
+                    "only": [entry["upstream_provider"]],
+                    "allow_fallbacks": False,
+                }
+            extra_headers = None
+            if entry["provider"] == "anthropic":
+                extra_headers = {
+                    "anthropic-workspace-id": os.environ["ANTHROPIC_WORKSPACE_ID"]
+                }
+            inspect_eval(
+                tasks=str(task_file),
+                model=entry["snapshot"],
+                model_args=model_args,
+                metadata={
+                    "modelwatch_run_id": run_id,
+                    "taskset_version": taskset_version,
+                    "roster_date": str(roster_data["date"]),
+                    "area": area,
+                    "provider": entry["provider"],
+                    "upstream_provider": entry.get("upstream_provider"),
+                    "endpoint": entry.get("endpoint"),
+                    "effort": entry.get("effort"),
+                },
+                log_dir=str(run_folder),
+                log_format="eval",
+                display="plain",
+                epochs=repeats or int(defaults["repeats"]),
+                temperature=float(defaults["temperature"]),
+                seed=int(defaults["seed"]),
+                token_limit=int(defaults["token_limit_per_sample"]),
+                time_limit=int(defaults["time_limit_s"]),
+                effort=entry.get("effort") if entry["provider"] != "anthropic" else None,
+                extra_headers=extra_headers,
+            )
     typer.echo(str(run_folder))
 
 
 @app.command("import")
-def import_data() -> None:
-    """Import public benchmark data in a later step."""
-    typer.echo("not in this step")
+def import_data(all_sources: bool = typer.Option(False, "--all")) -> None:
+    """Import public benchmark data."""
+    if not all_sources:
+        raise typer.BadParameter("Step 2 requires --all")
+    if not os.environ.get("ARTIFICIAL_ANALYSIS_API_KEY"):
+        raise typer.BadParameter("ARTIFICIAL_ANALYSIS_API_KEY is not set; restart the terminal after setting it")
+    added = []
+    for name, importer in (("epoch", epoch.import_rows), ("aa", aa.import_rows),
+                           ("livebench", livebench.import_rows), ("metr", metr.import_rows)):
+        rows = importer()
+        added.extend(rows)
+        typer.echo(f"{name}: added {len(rows)} rows")
+    typer.echo(f"total added {len(added)} rows")
 
 
 @app.command()
@@ -134,14 +156,19 @@ def flatten(run_folder: Path | None = typer.Option(None, "--run-folder")) -> Non
 
 
 @app.command()
-def report() -> None:
-    """Render reports in a later step."""
-    typer.echo("not in this step")
+def report(
+    dashboard: bool = typer.Option(False, "--dashboard"),
+    run_id: str | None = typer.Option(None, "--run-id"),
+) -> None:
+    """Render the dashboard or a private run report."""
+    from modelwatch.report import render_dashboard, render_run_report
+    typer.echo(render_dashboard() if dashboard else render_run_report(run_id=run_id))
 
 
 @app.command()
 def selftest(
     roster: Path = typer.Option(Path("config/roster.yaml"), "--roster"),
+    tasks: bool = typer.Option(False, "--tasks"),
 ) -> None:
     """Check the Step 1 configuration and result stores."""
     errors: list[str] = []
@@ -177,11 +204,30 @@ def selftest(
     except ValueError:
         errors.append("INSPECT_LOG_DIR is outside runs")
 
+    task_count = 0
+    if tasks:
+        from modelwatch.scorers.deterministic import score_completion
+        from modelwatch.tasks.common import records
+
+        for area in ("hub_edits", "injection"):
+            for record in records(area):
+                task_count += 1
+                metadata = record["metadata"]
+                good, good_details = score_completion(metadata["known_good"], metadata)
+                bad, bad_details = score_completion(metadata["known_bad"], metadata)
+                if good != 1.0:
+                    errors.append(f"{record['id']} known_good={good}: {good_details}")
+                if bad >= 0.5:
+                    errors.append(f"{record['id']} known_bad={bad}: {bad_details}")
+        if task_count != 12:
+            errors.append(f"expected 12 anchor tasks, found {task_count}")
+
     if errors:
         for error in errors:
             typer.echo(error, err=True)
         raise typer.Exit(1)
-    typer.echo(f"ok: {len(rows)} result rows")
+    suffix = f", {task_count} task pairs" if tasks else ""
+    typer.echo(f"ok: {len(rows)} result rows{suffix}")
 
 
 @app.command()

@@ -6,5 +6,5 @@
 .inspect-trace.log*
 __pycache__/
 .pytest_cache/
-runs/*.eval
+runs/**/*.eval
 results/results.sqlite
