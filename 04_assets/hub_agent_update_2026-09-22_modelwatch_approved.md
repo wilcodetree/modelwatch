@@ -22,7 +22,7 @@ modelwatch (MLCommons owns ModelBench).
 2026-11-30 v0.2.0 first unattended weekly run; 2026-12-19 retro.
 
 **Roadmap and portfolio.** Add modelwatch under roadmap section 1 item 4 next to BurnMon, and
-a portfolio row (tier Active side-track, state Proposed until v0.1.0-alpha.1). Folder map:
-add `modelwatch` to `C:\ZND\10_holding\04_engineering\migration\2026-09-08_znd_migration_map.json`.
+a portfolio row (tier Active side-track, state Proposed until v0.1.0-alpha.1). The 2026-09-08
+migration map is a frozen snapshot of the `C:\dev` move and is not updated (hub ruling 2026-09-22).
 
 **Not done.** Git init, first commit, GitHub repo creation: Wilco's step.
