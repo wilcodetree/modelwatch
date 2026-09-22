@@ -8,5 +8,5 @@ from modelwatch.tasks.common import samples
 
 @task
 def hub_edits() -> Task:
-    return Task(dataset=samples("hub_edits"), scorer=deterministic(), version="1.0.0",
+    return Task(dataset=samples("hub_edits"), scorer=deterministic(), version="1.0.1",
                 metadata={"area": "hub_edits"})

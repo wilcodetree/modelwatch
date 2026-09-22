@@ -53,7 +53,7 @@ def _row(log: EvalLog, sample: EvalSample) -> dict[str, Any]:
         "taskset_version": metadata.get("taskset_version"),
         "roster_date": metadata.get("roster_date"),
         "task_id": str(sample.id),
-        "task_version": str(log.eval.task_version),
+        "task_version": str((sample.metadata or {}).get("item_version", log.eval.task_version)),
         "area": metadata.get("area", "hello"),
         "model_snapshot": log.eval.model,
         "provider": metadata.get("provider"),

@@ -8,5 +8,5 @@ from modelwatch.tasks.common import samples
 
 @task
 def injection() -> Task:
-    return Task(dataset=samples("injection"), scorer=deterministic(), version="1.0.0",
+    return Task(dataset=samples("injection"), scorer=deterministic(), version="1.0.1",
                 metadata={"area": "injection"})

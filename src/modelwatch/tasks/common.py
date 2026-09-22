@@ -28,6 +28,7 @@ def samples(area: str) -> list[Sample]:
         for relative in record["metadata"].get("files", []):
             path = ROOT / "tasks" / relative
             fixture_parts.append(f"\n\nFILE: {relative}\n{path.read_text(encoding='utf-8')}")
+        metadata = {**record["metadata"], "item_version": record["version"]}
         result.append(Sample(id=record["id"], input=record["input"] + "".join(fixture_parts),
-                             target=record["target"], metadata=record["metadata"]))
+                             target=record["target"], metadata=metadata))
     return result
