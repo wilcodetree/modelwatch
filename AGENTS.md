@@ -15,7 +15,9 @@ Root tree instructions: `C:\ZND\AGENTS.md`. Dates: `DEADLINES.md` in this folder
 Rules specific to this project:
 - The task set under `tasks\` is private. Task text never appears in a chat, a post, a
   skill or a report. Tasks are only ever run through the harness.
-- Model identifiers are exact dated snapshot IDs, never aliases such as `latest`.
+- Model identifiers are pinned snapshots, never moving aliases such as `latest`. Use an exact
+  dated snapshot ID when the vendor publishes one. A vendor-documented canonical dateless ID is
+  allowed only when the vendor states that the ID is immutable for that release.
 - `results\results.ndjson` is append-only. A bad run gets a `notes` value, never a delete.
 - Every run records the Inspect version, the task set version and the roster file date.
 - No Valona folder, no `C:\dev\Work`, is ever a fixture or a task source.

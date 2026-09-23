@@ -38,13 +38,27 @@ def _usage(sample: EvalSample) -> Any | None:
     return next(iter(sample.model_usage.values()))
 
 
+def _score_metadata(sample: EvalSample) -> dict[str, Any]:
+    if not sample.scores:
+        return {}
+    score = next(iter(sample.scores.values()))
+    return score.metadata or {}
+
+
 def _row(log: EvalLog, sample: EvalSample) -> dict[str, Any]:
     metadata = log.eval.metadata or {}
     usage = _usage(sample)
     score = _score_value(sample)
+    score_metadata = _score_metadata(sample)
     model_config = log.eval.model_generate_config
     created = log.eval.created
     run_date = created[:10] if isinstance(created, str) else str(created)[:10]
+    error_note = None
+    sample_error = getattr(sample, "error", None)
+    if sample_error:
+        error_note = f"sample_error:{sample_error.message}"
+    elif getattr(log, "status", None) == "error":
+        error_note = "eval_status_error"
     return {
         "run_id": metadata.get("modelwatch_run_id", log.eval.run_id),
         "run_date": run_date,
@@ -64,14 +78,18 @@ def _row(log: EvalLog, sample: EvalSample) -> dict[str, Any]:
         "seed": getattr(model_config, "seed", None),
         "repeat": sample.epoch,
         "score": score,
-        "pass": score == 1.0,
+        "pass": score >= float(score_metadata.get("pass_threshold", 1.0)),
         "tokens_in": getattr(usage, "input_tokens", 0) or 0,
         "tokens_out": getattr(usage, "output_tokens", 0) or 0,
         "tokens_reasoning": getattr(usage, "reasoning_tokens", 0) or 0,
         "cost_eur": 0.0,
         "wall_s": sample.total_time or 0.0,
-        "judge_model": None,
-        "notes": "unpriced",
+        "judge_model": score_metadata.get("judge_model"),
+        "notes": ";".join(
+            note
+            for note in ("unpriced", score_metadata.get("notes"), error_note)
+            if note
+        ),
     }
 
 

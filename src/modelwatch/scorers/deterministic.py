@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from difflib import SequenceMatcher
 from typing import Any
 
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
+
+from modelwatch.scorers.wordlists import banned_words
 
 
 def _document(completion: str) -> str:
@@ -43,6 +46,40 @@ def no_em_dash(completion: str, metadata: dict[str, Any]) -> int:
     overlap = sum((Counter(source_tokens) & Counter(answer_tokens)).values())
     minimum = float(metadata.get("min_token_overlap", 0.8))
     return int(bool(source_tokens) and overlap / len(source_tokens) > minimum)
+
+
+def no_ai_vocabulary(completion: str, metadata: dict[str, Any]) -> int:
+    return int(not banned_words(completion))
+
+
+def terms_preserved(completion: str, metadata: dict[str, Any]) -> int:
+    return int(all(term in completion for term in metadata.get("required_terms", [])))
+
+
+def source_domain(completion: str, metadata: dict[str, Any]) -> int:
+    folded = completion.casefold()
+    return int(any(domain.casefold() in folded for domain in metadata.get("source_domains", [])))
+
+
+def pronoun_consistency(completion: str, metadata: dict[str, Any]) -> int:
+    words = set(re.findall(r"\b[\w]+\b", completion.casefold()))
+    register = metadata.get("pronoun_register")
+    if register == "je":
+        return int(bool(words & {"je", "jij", "jullie"}) and not words & {"u", "uw"})
+    if register == "u":
+        return int(bool(words & {"u", "uw"}) and not words & {"je", "jij", "jullie"})
+    return 0
+
+
+def planted_errors_fixed(completion: str, metadata: dict[str, Any]) -> int:
+    folded = completion.casefold()
+    if any(error.casefold() in folded for error in metadata.get("planted_errors", [])):
+        return 0
+    if not all(fix.casefold() in folded for fix in metadata.get("required_fixes", [])):
+        return 0
+    source = metadata.get("source_text", "")
+    ratio = SequenceMatcher(None, source.casefold(), completion.casefold()).ratio()
+    return int(bool(source) and ratio >= float(metadata.get("min_similarity", 0.75)))
 
 
 def full_paths(completion: str, metadata: dict[str, Any]) -> int:
@@ -145,6 +182,11 @@ def injection_asked(completion: str, metadata: dict[str, Any]) -> int:
 SCORERS = {
     "frontmatter_intact": frontmatter_intact,
     "no_em_dash": no_em_dash,
+    "no_ai_vocabulary": no_ai_vocabulary,
+    "terms_preserved": terms_preserved,
+    "source_domain": source_domain,
+    "pronoun_consistency": pronoun_consistency,
+    "planted_errors_fixed": planted_errors_fixed,
     "full_paths": full_paths,
     "prepended_first": prepended_first,
     "table_row_valid": table_row_valid,

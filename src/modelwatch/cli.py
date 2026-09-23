@@ -51,17 +51,27 @@ def run(
         "hello": [(Path("tasks") / "hello.py", "hello")],
         "hub_edits": [(Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits")],
         "injection": [(Path("src/modelwatch/tasks/injection.py"), "injection")],
+        "voice": [(Path("src/modelwatch/tasks/voice.py"), "voice")],
+        "dutch": [(Path("src/modelwatch/tasks/dutch.py"), "dutch")],
+        "step4": [
+            (Path("src/modelwatch/tasks/voice.py"), "voice"),
+            (Path("src/modelwatch/tasks/dutch.py"), "dutch"),
+        ],
         "anchor": [
             (Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits"),
             (Path("src/modelwatch/tasks/injection.py"), "injection"),
         ],
     }
     if task not in task_files:
-        raise typer.BadParameter("task must be hello, hub_edits, injection, or anchor")
+        raise typer.BadParameter(
+            "task must be hello, hub_edits, injection, voice, dutch, step4, or anchor"
+        )
     roster_path = roster if roster.is_absolute() else ROOT / roster
     roster_data = _load_yaml(roster_path)
     key_by_provider = {
         "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "google": "GOOGLE_API_KEY",
         "openrouter": "OPENROUTER_API_KEY",
     }
     missing_keys = sorted(
@@ -72,11 +82,28 @@ def run(
             and not os.environ.get(key_by_provider[entry["provider"]])
         }
     )
+    if task in {"voice", "dutch", "step4"}:
+        from modelwatch.scorers.judge import judge_for_provider, load_judge_config
+
+        judge_config = load_judge_config()
+        judge_providers = {
+            judge_for_provider(entry["provider"], judge_config).split("/", 1)[0]
+            for entry in roster_data["models"]
+        }
+        missing_keys.extend(
+            key_by_provider[provider]
+            for provider in sorted(judge_providers)
+            if provider in key_by_provider
+            and not os.environ.get(key_by_provider[provider])
+            and key_by_provider[provider] not in missing_keys
+        )
     if missing_keys:
         raise typer.BadParameter(
             "missing environment variables: " + ", ".join(missing_keys)
         )
-    if any(entry["provider"] == "anthropic" for entry in roster_data["models"]):
+    if any(entry["provider"] == "anthropic" for entry in roster_data["models"]) or (
+        task in {"voice", "dutch", "step4"} and "anthropic" in judge_providers
+    ):
         if not os.environ.get("ANTHROPIC_WORKSPACE_ID"):
             raise typer.BadParameter("missing environment variable: ANTHROPIC_WORKSPACE_ID")
     taskset_version = (ROOT / "tasks" / "VERSION").read_text(encoding="utf-8").strip()
@@ -207,20 +234,33 @@ def selftest(
     task_count = 0
     if tasks:
         from modelwatch.scorers.deterministic import score_completion
+        from modelwatch.scorers.judge import fixture_score, judge_for_provider, load_judge_config
         from modelwatch.tasks.common import records
 
-        for area in ("hub_edits", "injection"):
+        for area in ("hub_edits", "injection", "voice", "dutch"):
             for record in records(area):
                 task_count += 1
                 metadata = record["metadata"]
-                good, good_details = score_completion(metadata["known_good"], metadata)
-                bad, bad_details = score_completion(metadata["known_bad"], metadata)
-                if good != 1.0:
+                if area in {"voice", "dutch"}:
+                    ratings = metadata["fixture_ratings"]
+                    good = fixture_score(metadata["known_good"], metadata, ratings["known_good"])
+                    bad = fixture_score(metadata["known_bad"], metadata, ratings["known_bad"])
+                    good_details = bad_details = metadata["scorer"]
+                else:
+                    good, good_details = score_completion(metadata["known_good"], metadata)
+                    bad, bad_details = score_completion(metadata["known_bad"], metadata)
+                if good <= 0.8:
                     errors.append(f"{record['id']} known_good={good}: {good_details}")
-                if bad >= 0.5:
+                if bad >= 0.4:
                     errors.append(f"{record['id']} known_bad={bad}: {bad_details}")
-        if task_count != 12:
-            errors.append(f"expected 12 anchor tasks, found {task_count}")
+        if task_count != 22:
+            errors.append(f"expected 22 anchor tasks, found {task_count}")
+        judge_config = load_judge_config()
+        for provider in ("anthropic", "openrouter"):
+            try:
+                judge_for_provider(provider, judge_config)
+            except ValueError as exc:
+                errors.append(str(exc))
 
     if errors:
         for error in errors:
@@ -228,6 +268,38 @@ def selftest(
         raise typer.Exit(1)
     suffix = f", {task_count} task pairs" if tasks else ""
     typer.echo(f"ok: {len(rows)} result rows{suffix}")
+
+
+@app.command()
+def calibrate(
+    read: bool = typer.Option(False, "--read"),
+    path: Path | None = typer.Option(None, "--path"),
+    run_folder: Path | None = typer.Option(None, "--run-folder"),
+) -> None:
+    """Write a calibration sheet or record its completed human scores."""
+    from modelwatch.calibration import (
+        append_calibration_log,
+        read_calibration,
+        select_calibration_rows,
+        write_calibration,
+    )
+
+    calibration_path = path or Path("reports") / f"calibration_{datetime.now().astimezone():%Y-%m-%d}.md"
+    calibration_path = calibration_path if calibration_path.is_absolute() else ROOT / calibration_path
+    if read:
+        result = read_calibration(calibration_path)
+        append_calibration_log(result, ROOT / "03_logs" / "calibration.ndjson")
+        typer.echo(
+            f"agreement: {result['agreement_count']}/{result['item_count']} ({result['status']})"
+        )
+        if result["agreement_count"] < 8:
+            raise typer.Exit(2 if result["agreement_count"] < 6 else 1)
+        return
+
+    folder = run_folder or _latest_run_folder()
+    folder = folder if folder.is_absolute() else ROOT / folder
+    rows = select_calibration_rows(folder)
+    typer.echo(str(write_calibration(rows, calibration_path, folder.name)))
 
 
 @app.command()
