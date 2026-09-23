@@ -1,0 +1,7 @@
+diff --git a/cache.py b/cache.py
+index 1111111..2222222 100644
+--- a/cache.py
++++ b/cache.py
+@@ -8,3 +8,4 @@ def get(key):
+-    return values[key]
++    return values.get(key)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,11 @@ os.environ.setdefault("LOCALAPPDATA", str(ROOT / ".local-appdata"))
 os.environ.setdefault("INSPECT_TRACE_FILE", str(ROOT / ".inspect-trace.log"))
 
 from inspect_ai import eval as inspect_eval
+from inspect_ai.model import ModelCost, get_model_info
 
 from modelwatch.flatten import flatten_run
 from modelwatch.external import aa, epoch, livebench, metr
+from modelwatch.guard import GuardStop, PriceBook, SpendGuard, eval_log_usages
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -57,6 +60,12 @@ def run(
             (Path("src/modelwatch/tasks/voice.py"), "voice"),
             (Path("src/modelwatch/tasks/dutch.py"), "dutch"),
         ],
+        "coding": [(Path("src/modelwatch/tasks/coding.py"), "coding")],
+        "skills": [(Path("src/modelwatch/tasks/skills.py"), "skills")],
+        "step5": [
+            (Path("src/modelwatch/tasks/coding.py"), "coding"),
+            (Path("src/modelwatch/tasks/skills.py"), "skills"),
+        ],
         "anchor": [
             (Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits"),
             (Path("src/modelwatch/tasks/injection.py"), "injection"),
@@ -64,7 +73,8 @@ def run(
     }
     if task not in task_files:
         raise typer.BadParameter(
-            "task must be hello, hub_edits, injection, voice, dutch, step4, or anchor"
+            "task must be hello, hub_edits, injection, voice, dutch, step4, coding, "
+            "skills, step5, or anchor"
         )
     roster_path = roster if roster.is_absolute() else ROOT / roster
     roster_data = _load_yaml(roster_path)
@@ -108,6 +118,24 @@ def run(
             raise typer.BadParameter("missing environment variable: ANTHROPIC_WORKSPACE_ID")
     taskset_version = (ROOT / "tasks" / "VERSION").read_text(encoding="utf-8").strip()
     defaults = roster_data["defaults"]
+    settings = tomllib.loads((ROOT / "config" / "settings.toml").read_text(encoding="utf-8"))
+    agentic = task in {"coding", "skills", "step5"}
+    limits = settings["run"]["coding"] if agentic else defaults
+    price_book = PriceBook.load(ROOT / "config" / "prices.yaml")
+    spend_guard = SpendGuard(
+        float(settings["guard"]["eur_per_run"]),
+        price_book,
+        max_sample_eur=2.0 if agentic else None,
+    )
+    model_cost_config = {
+        model: ModelCost(
+            input=price.input_usd_per_million,
+            output=price.output_usd_per_million,
+            input_cache_write=price.cache_write_usd_per_million,
+            input_cache_read=price.cache_read_usd_per_million,
+        )
+        for model, price in price_book.models.items()
+    }
     run_id = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%z")
     run_folder = RUNS_DIR / run_id
     run_folder.mkdir(parents=True, exist_ok=False)
@@ -125,32 +153,62 @@ def run(
                 extra_headers = {
                     "anthropic-workspace-id": os.environ["ANTHROPIC_WORKSPACE_ID"]
                 }
-            inspect_eval(
-                tasks=str(task_file),
-                model=entry["snapshot"],
-                model_args=model_args,
-                metadata={
-                    "modelwatch_run_id": run_id,
-                    "taskset_version": taskset_version,
-                    "roster_date": str(roster_data["date"]),
-                    "area": area,
-                    "provider": entry["provider"],
-                    "upstream_provider": entry.get("upstream_provider"),
-                    "endpoint": entry.get("endpoint"),
-                    "effort": entry.get("effort"),
-                },
-                log_dir=str(run_folder),
-                log_format="eval",
-                display="plain",
-                epochs=repeats or int(defaults["repeats"]),
-                temperature=float(defaults["temperature"]),
-                seed=int(defaults["seed"]),
-                token_limit=int(defaults["token_limit_per_sample"]),
-                time_limit=int(defaults["time_limit_s"]),
-                effort=entry.get("effort") if entry["provider"] != "anthropic" else None,
-                extra_headers=extra_headers,
-            )
-    typer.echo(str(run_folder))
+            sample_ids: list[str | None] = [None]
+            if agentic:
+                from modelwatch.tasks.common import records
+
+                sample_ids = [record["id"] for record in records(area)]
+            for sample_id in sample_ids:
+                inspect_cost = model_cost_config.get(entry["snapshot"])
+                inspect_knows_cost_model = get_model_info(entry["snapshot"]) is not None
+                logs = inspect_eval(
+                    tasks=str(task_file),
+                    model=entry["snapshot"],
+                    model_args=model_args,
+                    metadata={
+                        "modelwatch_run_id": run_id,
+                        "taskset_version": taskset_version,
+                        "roster_date": str(roster_data["date"]),
+                        "price_date": price_book.date,
+                        "area": area,
+                        "provider": entry["provider"],
+                        "upstream_provider": entry.get("upstream_provider"),
+                        "endpoint": entry.get("endpoint"),
+                        "effort": entry.get("effort"),
+                    },
+                    log_dir=str(run_folder),
+                    log_format="eval",
+                    display="plain",
+                    sample_id=sample_id,
+                    max_samples=1 if agentic else None,
+                    sandbox_cleanup=True,
+                    epochs=repeats or int(defaults["repeats"]),
+                    temperature=float(defaults["temperature"]),
+                    seed=int(defaults["seed"]),
+                    token_limit=int(limits["token_limit_per_sample"]),
+                    time_limit=int(limits["time_limit_s"]),
+                    message_limit=int(limits["message_limit"]) if agentic else None,
+                    cost_limit=(
+                        2.0 / price_book.eur_per_usd
+                        if agentic and inspect_knows_cost_model
+                        else None
+                    ),
+                    model_cost_config=(
+                        {entry["snapshot"]: inspect_cost}
+                        if agentic and inspect_knows_cost_model and inspect_cost
+                        else None
+                    ),
+                    effort=entry.get("effort") if entry["provider"] != "anthropic" else None,
+                    extra_headers=extra_headers,
+                )
+                try:
+                    for log in logs:
+                        spend_guard.add_sample(eval_log_usages(log))
+                except GuardStop as exc:
+                    typer.echo(str(exc), err=True)
+                    typer.echo(str(run_folder), err=True)
+                    raise typer.Exit(3) from exc
+    typer.echo(f"{run_folder} EUR {spend_guard.total_eur:.6f}")
 
 
 @app.command("import")
@@ -237,7 +295,9 @@ def selftest(
         from modelwatch.scorers.judge import fixture_score, judge_for_provider, load_judge_config
         from modelwatch.tasks.common import records
 
-        for area in ("hub_edits", "injection", "voice", "dutch"):
+        from modelwatch.scorers.agentic import score_coding_patch, score_skill_patch
+
+        for area in ("hub_edits", "injection", "voice", "dutch", "coding", "skills"):
             for record in records(area):
                 task_count += 1
                 metadata = record["metadata"]
@@ -246,15 +306,22 @@ def selftest(
                     good = fixture_score(metadata["known_good"], metadata, ratings["known_good"])
                     bad = fixture_score(metadata["known_bad"], metadata, ratings["known_bad"])
                     good_details = bad_details = metadata["scorer"]
-                else:
+                elif area in {"hub_edits", "injection"}:
                     good, good_details = score_completion(metadata["known_good"], metadata)
                     bad, bad_details = score_completion(metadata["known_bad"], metadata)
+                elif area == "coding":
+                    good = score_coding_patch(metadata["known_good"], metadata, ROOT / "tasks")
+                    bad = score_coding_patch(metadata["known_bad"], metadata, ROOT / "tasks")
+                    good_details = bad_details = metadata["scorer"]
+                else:
+                    good, good_details = score_skill_patch(metadata["known_good"], metadata)
+                    bad, bad_details = score_skill_patch(metadata["known_bad"], metadata)
                 if good <= 0.8:
                     errors.append(f"{record['id']} known_good={good}: {good_details}")
                 if bad >= 0.4:
                     errors.append(f"{record['id']} known_bad={bad}: {bad_details}")
-        if task_count != 22:
-            errors.append(f"expected 22 anchor tasks, found {task_count}")
+        if task_count != 30:
+            errors.append(f"expected 30 anchor tasks, found {task_count}")
         judge_config = load_judge_config()
         for provider in ("anthropic", "openrouter"):
             try:

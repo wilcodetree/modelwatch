@@ -10,6 +10,8 @@ from typing import Any
 
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 
+from modelwatch.guard import PriceBook
+
 
 RESULT_COLUMNS = [
     "run_id", "run_date", "source", "inspect_version", "taskset_version",
@@ -38,6 +40,19 @@ def _usage(sample: EvalSample) -> Any | None:
     return next(iter(sample.model_usage.values()))
 
 
+def _cost_eur(sample: EvalSample) -> tuple[float, bool]:
+    price_book = PriceBook.load(Path(__file__).resolve().parents[2] / "config" / "prices.yaml")
+    total = 0.0
+    unpriced = not bool(sample.model_usage)
+    for model, usage in (sample.model_usage or {}).items():
+        cost = price_book.cost_eur(model, usage)
+        if cost is None:
+            unpriced = True
+        else:
+            total += cost
+    return total, unpriced
+
+
 def _score_metadata(sample: EvalSample) -> dict[str, Any]:
     if not sample.scores:
         return {}
@@ -50,6 +65,7 @@ def _row(log: EvalLog, sample: EvalSample) -> dict[str, Any]:
     usage = _usage(sample)
     score = _score_value(sample)
     score_metadata = _score_metadata(sample)
+    cost_eur, unpriced = _cost_eur(sample)
     model_config = log.eval.model_generate_config
     created = log.eval.created
     run_date = created[:10] if isinstance(created, str) else str(created)[:10]
@@ -82,12 +98,16 @@ def _row(log: EvalLog, sample: EvalSample) -> dict[str, Any]:
         "tokens_in": getattr(usage, "input_tokens", 0) or 0,
         "tokens_out": getattr(usage, "output_tokens", 0) or 0,
         "tokens_reasoning": getattr(usage, "reasoning_tokens", 0) or 0,
-        "cost_eur": 0.0,
+        "cost_eur": cost_eur,
         "wall_s": sample.total_time or 0.0,
         "judge_model": score_metadata.get("judge_model"),
         "notes": ";".join(
             note
-            for note in ("unpriced", score_metadata.get("notes"), error_note)
+            for note in (
+                "unpriced" if unpriced else None,
+                score_metadata.get("notes"),
+                error_note,
+            )
             if note
         ),
     }

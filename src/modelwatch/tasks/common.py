@@ -32,3 +32,24 @@ def samples(area: str) -> list[Sample]:
         result.append(Sample(id=record["id"], input=record["input"] + "".join(fixture_parts),
                              target=record["target"], metadata=metadata))
     return result
+
+
+def agentic_samples(area: str) -> list[Sample]:
+    result = []
+    for record in records(area):
+        metadata = {**record["metadata"], "item_version": record["version"]}
+        fixture = ROOT / "tasks" / metadata["fixture"]
+        sandbox_fixture = ROOT / "tasks" / metadata.get(
+            "sandbox_fixture", metadata["fixture"]
+        )
+        result.append(
+            Sample(
+                id=record["id"],
+                input=record["input"],
+                target=record["target"],
+                metadata=metadata,
+                files={"/workspace": str(fixture)},
+                sandbox=("docker", str(sandbox_fixture / "compose.yaml")),
+            )
+        )
+    return result
