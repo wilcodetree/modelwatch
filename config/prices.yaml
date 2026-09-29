@@ -1,16 +1,111 @@
-# USD per million tokens converted with the ECB reference rate for 2026-09-22.
+# Published prices per million tokens. EUR values use the latest ECB reference
+# rate available on 2026-09-23: EUR/USD 1.1463, so EUR per USD is 0.872372.
+# 2026-09-29: added Sonnet 5.5 and GPT-6 Luna at the same rate; corrected Fable 5.1
+# and Opus 5.5 cache reads (0.025x and 0.05x of input per the Anthropic pricing page).
 date: 2026-09-23
+currency: EUR
 eur_per_usd: 0.872372
 sources:
   exchange_rate: https://www.ecb.europa.eu/stats/shared/pdf/eurofxref.pdf
   anthropic: https://platform.claude.com/docs/en/about-claude/pricing
-  openrouter: https://openrouter.ai/qwen/qwen3.5-plus-02-15/api
+  openai: https://developers.openai.com/api/docs/pricing
+  google: https://ai.google.dev/gemini-api/docs/pricing
+  xai: https://docs.x.ai/developers/models
+  openrouter_glm: https://openrouter.ai/z-ai/glm-5.3-20260816
+  openrouter_qwen: https://openrouter.ai/qwen/qwen3.8-2.4t-a95b-20260812
+  moonshot: https://platform.moonshot.ai/
 models:
-  anthropic/claude-sonnet-4-5-20250929:
+  anthropic/claude-fable-5-1:
+    input_eur_per_million: 8.723720
+    output_eur_per_million: 43.618600
+    cache_write_eur_per_million: 10.904650
+    cache_read_eur_per_million: 0.218093
+    input_usd_per_million: 10.0
+    output_usd_per_million: 50.0
+    cache_write_usd_per_million: 12.5
+    cache_read_usd_per_million: 0.25
+  anthropic/claude-opus-5-5:
+    input_eur_per_million: 3.489488
+    output_eur_per_million: 17.447440
+    cache_write_eur_per_million: 4.361860
+    cache_read_eur_per_million: 0.174474
+    input_usd_per_million: 4.0
+    output_usd_per_million: 20.0
+    cache_write_usd_per_million: 5.0
+    cache_read_usd_per_million: 0.2
+  anthropic/claude-sonnet-5-5:
+    input_eur_per_million: 1.744744
+    output_eur_per_million: 8.723720
+    cache_write_eur_per_million: 2.180930
+    cache_read_eur_per_million: 0.174474
+    input_usd_per_million: 2.0
+    output_usd_per_million: 10.0
+    cache_write_usd_per_million: 2.5
+    cache_read_usd_per_million: 0.2
+  openrouter/openai/gpt-6-astra-20260903:
+    input_eur_per_million: 8.723720
+    output_eur_per_million: 43.618600
+    cache_write_eur_per_million: 10.904650
+    cache_read_eur_per_million: 0.872372
+    input_usd_per_million: 10.0
+    output_usd_per_million: 50.0
+    cache_write_usd_per_million: 12.5
+    cache_read_usd_per_million: 1.0
+  openrouter/openai/gpt-6-sol-20260922:
+    input_eur_per_million: 1.744744
+    output_eur_per_million: 8.723720
+    cache_write_eur_per_million: 2.180930
+    cache_read_eur_per_million: 0.174474
+    input_usd_per_million: 2.0
+    output_usd_per_million: 10.0
+    cache_write_usd_per_million: 2.5
+    cache_read_usd_per_million: 0.2
+  openrouter/openai/gpt-6-luna-20260922:
+    input_eur_per_million: 0.087237
+    output_eur_per_million: 0.436186
+    cache_write_eur_per_million: 0.109047
+    cache_read_eur_per_million: 0.008724
+    input_usd_per_million: 0.10
+    output_usd_per_million: 0.50
+    cache_write_usd_per_million: 0.125
+    cache_read_usd_per_million: 0.01
+  openrouter/google/gemini-3.8-flash-20260902:
+    input_eur_per_million: 0.654279
+    output_eur_per_million: 3.271395
+    cache_read_eur_per_million: 0.065428
+    input_usd_per_million: 0.75
+    output_usd_per_million: 3.75
+    cache_read_usd_per_million: 0.075
+  openrouter/x-ai/grok-4.7-20260916:
+    input_eur_per_million: 1.744744
+    output_eur_per_million: 5.234232
+    cache_read_eur_per_million: 0.436186
+    input_usd_per_million: 2.0
+    output_usd_per_million: 6.0
+    cache_read_usd_per_million: 0.5
+  openrouter/z-ai/glm-5.3-20260816:
+    input_eur_per_million: 0.490709
+    output_eur_per_million: 2.180930
+    cache_read_eur_per_million: 0.109047
+    input_usd_per_million: 0.5625
+    output_usd_per_million: 2.5
+    cache_read_usd_per_million: 0.125
+  openrouter/qwen/qwen3.8-2.4t-a95b-20260812:
+    input_eur_per_million: 1.744744
+    output_eur_per_million: 5.234232
+    cache_read_eur_per_million: 0.174474
+    input_usd_per_million: 2.0
+    output_usd_per_million: 6.0
+    cache_read_usd_per_million: 0.2
+  openrouter/moonshotai/kimi-k3-20260715:
+    input_eur_per_million: 2.617116
+    output_eur_per_million: 13.085580
+    cache_read_eur_per_million: 0.261712
     input_usd_per_million: 3.0
     output_usd_per_million: 15.0
-    cache_write_usd_per_million: 3.75
-    cache_read_usd_per_million: 0.30
-  openrouter/qwen/qwen3.5-plus-02-15:
-    input_usd_per_million: 0.26
-    output_usd_per_million: 1.56
+    cache_read_usd_per_million: 0.3
+  ollama/qwen3.5:9b-modelwatch-20260923:
+    input_eur_per_million: 0.0
+    output_eur_per_million: 0.0
+    input_usd_per_million: 0.0
+    output_usd_per_million: 0.0

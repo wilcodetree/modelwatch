@@ -1,14 +1,53 @@
-date: 2026-09-22
+date: 2026-09-29
 models:
-  - snapshot: anthropic/claude-sonnet-4-5-20250929
+  - snapshot: anthropic/claude-fable-5-1
     provider: anthropic
     effort: high
-  - snapshot: openrouter/qwen/qwen3.5-plus-02-15
+  - snapshot: anthropic/claude-opus-5-5
+    provider: anthropic
+    effort: high
+  - snapshot: anthropic/claude-sonnet-5-5
+    provider: anthropic
+    effort: high
+  - snapshot: openrouter/openai/gpt-6-astra-20260903
     provider: openrouter
-    upstream_provider: alibaba
+    upstream_provider: OpenAI
+    effort: high
+  - snapshot: openrouter/openai/gpt-6-sol-20260922
+    provider: openrouter
+    upstream_provider: OpenAI
+    effort: high
+  - snapshot: openrouter/openai/gpt-6-luna-20260922
+    provider: openrouter
+    upstream_provider: OpenAI
+    effort: high
+  - snapshot: openrouter/google/gemini-3.8-flash-20260902
+    provider: openrouter
+    upstream_provider: Google AI Studio
+    effort: high
+  - snapshot: openrouter/x-ai/grok-4.7-20260916
+    provider: openrouter
+    upstream_provider: xAI
+    effort: high
+  - snapshot: openrouter/z-ai/glm-5.3-20260816
+    provider: openrouter
+    upstream_provider: DeepInfra
+    effort: max
+  - snapshot: openrouter/qwen/qwen3.8-2.4t-a95b-20260812
+    provider: openrouter
+    upstream_provider: DeepInfra
+    effort: xhigh
+  - snapshot: openrouter/moonshotai/kimi-k3-20260715
+    provider: openrouter
+    upstream_provider: Moonshot AI
+    effort: max
+  - snapshot: ollama/qwen3.5:9b-modelwatch-20260923
+    provider: ollama
+    upstream_snapshot: qwen3.5:9b
+    upstream_manifest_digest: sha256:6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7
 defaults:
   temperature: 0.0
-  seed: 20261012
-  repeats: 1
+  seed: 20260923
+  repeats: 5
   token_limit_per_sample: 30000
   time_limit_s: 600
