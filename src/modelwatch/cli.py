@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 import tomllib
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -43,13 +44,20 @@ def _latest_run_folder() -> Path:
     return max(folders, key=lambda path: path.stat().st_mtime)
 
 
+def _write_run_manifest(run_folder: Path, manifest: dict[str, Any]) -> None:
+    (run_folder / "run.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=True) + "\n", encoding="utf-8"
+    )
+
+
 @app.command()
 def run(
-    task: str = typer.Option(..., "--task"),
+    task: str | None = typer.Option(None, "--task"),
+    all_tasks: bool = typer.Option(False, "--all"),
     roster: Path = typer.Option(Path("config/roster.yaml"), "--roster"),
     repeats: int | None = typer.Option(None, "--repeats", min=1),
 ) -> None:
-    """Run one task against every model in a roster."""
+    """Run one task, or all six anchor areas, model by model."""
     task_files = {
         "hello": [(Path("tasks") / "hello.py", "hello")],
         "hub_edits": [(Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits")],
@@ -71,11 +79,25 @@ def run(
             (Path("src/modelwatch/tasks/injection.py"), "injection"),
         ],
     }
-    if task not in task_files:
+    if all_tasks and task is not None:
+        raise typer.BadParameter("use either --all or --task, not both")
+    if not all_tasks and task not in task_files:
         raise typer.BadParameter(
-            "task must be hello, hub_edits, injection, voice, dutch, step4, coding, "
-            "skills, step5, or anchor"
+            "use --all or set --task to hello, hub_edits, injection, voice, dutch, "
+            "step4, coding, skills, step5, or anchor"
         )
+    selected_tasks = (
+        [
+            (Path("src/modelwatch/tasks/hub_edits.py"), "hub_edits"),
+            (Path("src/modelwatch/tasks/injection.py"), "injection"),
+            (Path("src/modelwatch/tasks/voice.py"), "voice"),
+            (Path("src/modelwatch/tasks/dutch.py"), "dutch"),
+            (Path("src/modelwatch/tasks/coding.py"), "coding"),
+            (Path("src/modelwatch/tasks/skills.py"), "skills"),
+        ]
+        if all_tasks
+        else task_files[task]
+    )
     roster_path = roster if roster.is_absolute() else ROOT / roster
     roster_data = _load_yaml(roster_path)
     key_by_provider = {
@@ -92,7 +114,8 @@ def run(
             and not os.environ.get(key_by_provider[entry["provider"]])
         }
     )
-    if task in {"voice", "dutch", "step4"}:
+    judged = any(area in {"voice", "dutch"} for _path, area in selected_tasks)
+    if judged:
         from modelwatch.scorers.judge import judge_for_provider, load_judge_config
 
         judge_config = load_judge_config()
@@ -112,20 +135,19 @@ def run(
             "missing environment variables: " + ", ".join(missing_keys)
         )
     if any(entry["provider"] == "anthropic" for entry in roster_data["models"]) or (
-        task in {"voice", "dutch", "step4"} and "anthropic" in judge_providers
+        judged and "anthropic" in judge_providers
     ):
         if not os.environ.get("ANTHROPIC_WORKSPACE_ID"):
             raise typer.BadParameter("missing environment variable: ANTHROPIC_WORKSPACE_ID")
     taskset_version = (ROOT / "tasks" / "VERSION").read_text(encoding="utf-8").strip()
     defaults = roster_data["defaults"]
     settings = tomllib.loads((ROOT / "config" / "settings.toml").read_text(encoding="utf-8"))
-    agentic = task in {"coding", "skills", "step5"}
-    limits = settings["run"]["coding"] if agentic else defaults
+    has_agentic_tasks = any(area in {"coding", "skills"} for _path, area in selected_tasks)
     price_book = PriceBook.load(ROOT / "config" / "prices.yaml")
     spend_guard = SpendGuard(
         float(settings["guard"]["eur_per_run"]),
         price_book,
-        max_sample_eur=2.0 if agentic else None,
+        max_sample_eur=2.0 if has_agentic_tasks else None,
     )
     model_cost_config = {
         model: ModelCost(
@@ -139,75 +161,146 @@ def run(
     run_id = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%z")
     run_folder = RUNS_DIR / run_id
     run_folder.mkdir(parents=True, exist_ok=False)
+    manifest: dict[str, Any] = {
+        "run_id": run_id,
+        "started": datetime.now().astimezone().isoformat(),
+        "status": "running",
+        "guard_status": "within_limit",
+        "guard_limit_eur": spend_guard.limit_eur,
+        "cost_eur": 0.0,
+        "roster_date": str(roster_data["date"]),
+        "models": [],
+    }
+    _write_run_manifest(run_folder, manifest)
 
-    for entry in roster_data["models"]:
-        for task_file, area in task_files[task]:
-            model_args: dict[str, Any] = {}
-            if entry["provider"] == "openrouter":
-                model_args["provider"] = {
-                    "only": [entry["upstream_provider"]],
-                    "allow_fallbacks": False,
-                }
-            extra_headers = None
-            if entry["provider"] == "anthropic":
-                extra_headers = {
-                    "anthropic-workspace-id": os.environ["ANTHROPIC_WORKSPACE_ID"]
-                }
-            sample_ids: list[str | None] = [None]
-            if agentic:
-                from modelwatch.tasks.common import records
+    try:
+        for model_number, entry in enumerate(roster_data["models"], start=1):
+            model_started = time.monotonic()
+            model_start_cost = spend_guard.total_eur
+            manifest["active_model"] = entry["snapshot"]
+            _write_run_manifest(run_folder, manifest)
+            for task_file, area in selected_tasks:
+                agentic = area in {"coding", "skills"}
+                limits = settings["run"]["coding"] if agentic else defaults
+                connection_limit = int(settings["connections"][entry["provider"]])
+                model_args: dict[str, Any] = {}
+                if entry["provider"] == "openrouter":
+                    model_args["provider"] = {
+                        "only": [entry["upstream_provider"]],
+                        "allow_fallbacks": False,
+                    }
+                extra_headers = None
+                if entry["provider"] == "anthropic":
+                    extra_headers = {
+                        "anthropic-workspace-id": os.environ["ANTHROPIC_WORKSPACE_ID"]
+                    }
+                sample_ids: list[str | None] = [None]
+                if agentic:
+                    from modelwatch.tasks.common import records
 
-                sample_ids = [record["id"] for record in records(area)]
-            for sample_id in sample_ids:
-                inspect_cost = model_cost_config.get(entry["snapshot"])
-                inspect_knows_cost_model = get_model_info(entry["snapshot"]) is not None
-                logs = inspect_eval(
-                    tasks=str(task_file),
-                    model=entry["snapshot"],
-                    model_args=model_args,
-                    metadata={
-                        "modelwatch_run_id": run_id,
-                        "taskset_version": taskset_version,
-                        "roster_date": str(roster_data["date"]),
-                        "price_date": price_book.date,
-                        "area": area,
-                        "provider": entry["provider"],
-                        "upstream_provider": entry.get("upstream_provider"),
-                        "endpoint": entry.get("endpoint"),
-                        "effort": entry.get("effort"),
-                    },
-                    log_dir=str(run_folder),
-                    log_format="eval",
-                    display="plain",
-                    sample_id=sample_id,
-                    max_samples=1 if agentic else None,
-                    sandbox_cleanup=True,
-                    epochs=repeats or int(defaults["repeats"]),
-                    temperature=float(defaults["temperature"]),
-                    seed=int(defaults["seed"]),
-                    token_limit=int(limits["token_limit_per_sample"]),
-                    time_limit=int(limits["time_limit_s"]),
-                    message_limit=int(limits["message_limit"]) if agentic else None,
-                    cost_limit=(
-                        2.0 / price_book.eur_per_usd
-                        if agentic and inspect_knows_cost_model
-                        else None
-                    ),
-                    model_cost_config=(
-                        {entry["snapshot"]: inspect_cost}
-                        if agentic and inspect_knows_cost_model and inspect_cost
-                        else None
-                    ),
-                    effort=entry.get("effort") if entry["provider"] != "anthropic" else None,
-                    extra_headers=extra_headers,
-                )
-                try:
+                    sample_ids = [record["id"] for record in records(area)]
+                for sample_id in sample_ids:
+                    inspect_cost = model_cost_config.get(entry["snapshot"])
+                    inspect_knows_cost_model = get_model_info(entry["snapshot"]) is not None
+                    logs = inspect_eval(
+                        tasks=str(task_file),
+                        model=entry["snapshot"],
+                        model_args=model_args,
+                        metadata={
+                            "modelwatch_run_id": run_id,
+                            "taskset_version": taskset_version,
+                            "roster_date": str(roster_data["date"]),
+                            "price_date": price_book.date,
+                            "area": area,
+                            "provider": entry["provider"],
+                            "upstream_provider": entry.get("upstream_provider"),
+                            "endpoint": entry.get("endpoint"),
+                            "effort": entry.get("effort"),
+                        },
+                        log_dir=str(run_folder),
+                        log_format="eval",
+                        display="plain",
+                        sample_id=sample_id,
+                        max_samples=1 if agentic else connection_limit,
+                        sandbox_cleanup=True,
+                        epochs=repeats or int(defaults["repeats"]),
+                        temperature=float(defaults["temperature"]),
+                        seed=int(defaults["seed"]),
+                        token_limit=int(limits["token_limit_per_sample"]),
+                        time_limit=int(limits["time_limit_s"]),
+                        message_limit=int(limits["message_limit"]) if agentic else None,
+                        cost_limit=(
+                            2.0 / price_book.eur_per_usd
+                            if agentic and inspect_knows_cost_model
+                            else None
+                        ),
+                        model_cost_config=(
+                            {entry["snapshot"]: inspect_cost}
+                            if agentic and inspect_knows_cost_model and inspect_cost
+                            else None
+                        ),
+                        effort=entry.get("effort") if entry["provider"] != "anthropic" else None,
+                        extra_headers=extra_headers,
+                    )
                     for log in logs:
                         spend_guard.add_sample(eval_log_usages(log))
-                except GuardStop as exc:
-                    typer.echo(str(exc), err=True)
-                    typer.echo(str(run_folder), err=True)
-                    raise typer.Exit(3) from exc
+            model_cost = spend_guard.total_eur - model_start_cost
+            model_wall_s = time.monotonic() - model_started
+            manifest["models"].append(
+                {
+                    "snapshot": entry["snapshot"],
+                    "status": "complete",
+                    "cost_eur": model_cost,
+                    "wall_s": model_wall_s,
+                }
+            )
+            manifest["cost_eur"] = spend_guard.total_eur
+            manifest.pop("active_model", None)
+            _write_run_manifest(run_folder, manifest)
+            if all_tasks:
+                flatten_run(
+                    run_folder,
+                    RESULTS_DIR / "results.ndjson",
+                    RESULTS_DIR / "results.sqlite",
+                )
+            typer.echo(
+                f"model {model_number}/{len(roster_data['models'])} "
+                f"{entry['snapshot']} EUR {model_cost:.6f}; running EUR "
+                f"{spend_guard.total_eur:.6f}; wall {model_wall_s:.1f}s"
+            )
+    except GuardStop as exc:
+        manifest["status"] = "guard_stop"
+        manifest["guard_status"] = str(exc)
+        manifest["cost_eur"] = spend_guard.total_eur
+        manifest["finished"] = datetime.now().astimezone().isoformat()
+        _write_run_manifest(run_folder, manifest)
+        if all_tasks:
+            flatten_run(
+                run_folder,
+                RESULTS_DIR / "results.ndjson",
+                RESULTS_DIR / "results.sqlite",
+            )
+        typer.echo(str(exc), err=True)
+        typer.echo(str(run_folder), err=True)
+        raise typer.Exit(3) from exc
+    except BaseException as exc:
+        manifest["status"] = "error"
+        manifest["guard_status"] = "not_reached"
+        manifest["error"] = f"{type(exc).__name__}: {exc}"
+        manifest["cost_eur"] = spend_guard.total_eur
+        manifest["finished"] = datetime.now().astimezone().isoformat()
+        _write_run_manifest(run_folder, manifest)
+        if all_tasks:
+            flatten_run(
+                run_folder,
+                RESULTS_DIR / "results.ndjson",
+                RESULTS_DIR / "results.sqlite",
+            )
+        raise
+    manifest["status"] = "complete"
+    manifest["finished"] = datetime.now().astimezone().isoformat()
+    manifest["cost_eur"] = spend_guard.total_eur
+    _write_run_manifest(run_folder, manifest)
     typer.echo(f"{run_folder} EUR {spend_guard.total_eur:.6f}")
 
 
@@ -243,11 +336,20 @@ def flatten(run_folder: Path | None = typer.Option(None, "--run-folder")) -> Non
 @app.command()
 def report(
     dashboard: bool = typer.Option(False, "--dashboard"),
+    post_draft: bool = typer.Option(False, "--post-draft"),
     run_id: str | None = typer.Option(None, "--run-id"),
 ) -> None:
-    """Render the dashboard or a private run report."""
-    from modelwatch.report import render_dashboard, render_run_report
-    typer.echo(render_dashboard() if dashboard else render_run_report(run_id=run_id))
+    """Render the dashboard, private run report, or post draft."""
+    from modelwatch.report import render_dashboard, render_post_draft, render_run_report
+
+    if sum((dashboard, post_draft)) > 1:
+        raise typer.BadParameter("use only one report output option")
+    if dashboard:
+        typer.echo(render_dashboard())
+    elif post_draft:
+        typer.echo(render_post_draft(run_id=run_id))
+    else:
+        typer.echo(render_run_report(run_id=run_id))
 
 
 @app.command()

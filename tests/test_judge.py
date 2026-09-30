@@ -15,8 +15,8 @@ from modelwatch.tasks.common import records
 
 def test_pair_a_is_cross_vendor_and_pinned() -> None:
     config = load_judge_config()
-    assert judge_for_provider("anthropic", config) == "openrouter/openai/gpt-5.2"
-    assert judge_for_provider("openrouter", config) == "anthropic/claude-opus-4-5-20251101"
+    assert judge_for_provider("anthropic", config) == "openrouter/openai/gpt-6-sol-20260922"
+    assert judge_for_provider("openrouter", config) == "anthropic/claude-opus-5-5"
 
 
 def test_judge_uses_candidate_score_after_position_swap() -> None:

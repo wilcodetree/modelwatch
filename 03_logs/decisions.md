@@ -2,6 +2,17 @@
 
 Newest on top, each with its why.
 
+- 2026-09-24 Light path replaces the Inspect run path (Wilco). Standard questions run weekly
+  inside Claude Code and Codex CLI by one script, answers saved as files, one judge (Claude Opus
+  via `claude -p`, self-preference bias disclosed, not corrected), one curve. Why: the v0.1 full
+  run of 2026-09-23 got 857 of 1,500 usable scores because of API credits, 429s and an interrupt;
+  ten API keys and a Docker sandbox are too heavy for a weekly habit, and the harnesses are what
+  Wilco actually wants compared. Kept: the 30 calibrated items as question source, the store,
+  the report. Parked: roster runs, sandbox, cross-vendor judge, guard, importers (optional).
+- 2026-09-24 Harnesses first: Claude Code and Codex CLI, scripted through their non-interactive
+  modes; Cowork as a manual paste column. Why: both CLIs can be driven from PowerShell; more
+  harnesses add flakiness before the habit exists.
+
 - 2026-09-22 Toolchain: Python 3.12, `uv` for env and lockfile, `inspect-ai` pinned per run,
   `modernc`-style pure dependencies avoided where possible (sqlite via stdlib). Why: uv gives a
   reproducible lockfile and fast installs; the run records its own pinned versions.
