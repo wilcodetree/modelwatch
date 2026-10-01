@@ -9,7 +9,7 @@ topic: proposal approved, project folder created
 
 **What happened.** Wilco approved the modelwatch proposal on 2026-09-22
 (`C:\ZND\10_holding\00_company\2026-09-22_proposal_modelwatch.md`). The project folder
-`C:\ZND\projects\modelwatch` was created with AGENTS.md, roadmap, v0.1 spec, six session
+`C:\ZND\50_projects\modelwatch` was created with AGENTS.md, roadmap, v0.1 spec, six session
 prompts, config examples and a private tasks folder. No code yet. Docker Desktop confirmed on
 the laptop.
 

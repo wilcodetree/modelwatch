@@ -9,7 +9,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath 'C:\ZND\projects\modelwatch'
+Set-Location -LiteralPath 'C:\ZND\50_projects\modelwatch'
 
 function Assert-LastExitCode {
     param(
@@ -22,7 +22,7 @@ function Assert-LastExitCode {
 }
 
 function Get-LatestRunId {
-    $folder = Get-ChildItem -LiteralPath 'C:\ZND\projects\modelwatch\runs' -Directory |
+    $folder = Get-ChildItem -LiteralPath 'C:\ZND\50_projects\modelwatch\runs' -Directory |
         Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'run.json') } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -120,9 +120,9 @@ function Invoke-Verification {
     uv run python -c "import json, os, sqlite3; from pathlib import Path; run=os.environ['MODELWATCH_RUN_ID']; manifest=json.loads((Path('runs') / run / 'run.json').read_text()); con=sqlite3.connect('results/results.sqlite'); models=con.execute('select count(distinct model_snapshot) from results where run_id=?',(run,)).fetchone()[0]; rows=con.execute('select count(*) from results where run_id=?',(run,)).fetchone()[0]; areas=con.execute('select count(distinct area) from results where run_id=?',(run,)).fetchone()[0]; print({'run_id':run,'status':manifest['status'],'guard_status':manifest['guard_status'],'cost_eur':manifest['cost_eur'],'models':models,'areas':areas,'rows':rows})"
     Assert-LastExitCode 'store verification'
 
-    $privateReport = "C:\ZND\projects\modelwatch\reports\$script:RunId.html"
-    $dashboard = 'C:\ZND\projects\modelwatch\reports\dashboard.html'
-    $postDraft = Get-ChildItem -LiteralPath 'C:\ZND\projects\modelwatch\reports' -Filter 'post_draft_*.md' |
+    $privateReport = "C:\ZND\50_projects\modelwatch\reports\$script:RunId.html"
+    $dashboard = 'C:\ZND\50_projects\modelwatch\reports\dashboard.html'
+    $postDraft = Get-ChildItem -LiteralPath 'C:\ZND\50_projects\modelwatch\reports' -Filter 'post_draft_*.md' |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     Get-Item -LiteralPath $privateReport

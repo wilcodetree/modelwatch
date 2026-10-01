@@ -21,11 +21,11 @@ for 72 samples. Eight of twelve items showed an absolute paired difference large
 standard error. Gate 1 therefore passes exactly at its required threshold.
 
 **Evidence.** The run appended 72 rows to both result stores, bringing
-`C:\ZND\projects\modelwatch\results\results.ndjson` to 2,477 rows. The task-set version is
+`C:\ZND\50_projects\modelwatch\results\results.ndjson` to 2,477 rows. The task-set version is
 `1.0.0`. `uv run modelwatch selftest --tasks` passed all 12 known completion pairs and
 `uv run pytest -q` passed 15 tests. The aggregate report is
-`C:\ZND\projects\modelwatch\reports\20260922T230354+0200.html`; the implementation record is
-in `C:\ZND\projects\modelwatch\SESSION_LOG.md`.
+`C:\ZND\50_projects\modelwatch\reports\20260922T230354+0200.html`; the implementation record is
+in `C:\ZND\50_projects\modelwatch\SESSION_LOG.md`.
 
 **Hub changes requested.** Mark the 2026-10-30 modelwatch Gate 1 milestone complete, with the
 note that it passed 8 of 12 at the threshold after scorer recalibration and anchor hardening.

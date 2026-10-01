@@ -5,9 +5,9 @@ on Inspect AI, public series imported from Epoch AI, Artificial Analysis, LiveBe
 Approved 2026-09-22, build starts 2026-10-12, one session a week.
 
 Proposal (why, design, decisions): `C:\ZND\10_holding\00_company\2026-09-22_proposal_modelwatch.md`
-Roadmap (priority order, only here): `C:\ZND\projects\modelwatch\02_roadmap\roadmap.md`
-v0.1 spec: `C:\ZND\projects\modelwatch\02_roadmap\2026-09-22_v0.1_spec.md`
-Session prompts: `C:\ZND\projects\modelwatch\02_roadmap\2026-09-22_v0.1_session_prompts.md`
+Roadmap (priority order, only here): `C:\ZND\50_projects\modelwatch\02_roadmap\roadmap.md`
+v0.1 spec: `C:\ZND\50_projects\modelwatch\02_roadmap\2026-09-22_v0.1_spec.md`
+Session prompts: `C:\ZND\50_projects\modelwatch\02_roadmap\2026-09-22_v0.1_session_prompts.md`
 Hub one-pager: `C:\ZND\10_holding\01_projects\modelwatch.md`
 
 Root tree instructions: `C:\ZND\AGENTS.md`. Dates: `DEADLINES.md` in this folder.

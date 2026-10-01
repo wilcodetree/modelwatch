@@ -57,10 +57,10 @@ all private task material out of the hub.
 
 ## Files
 
-- `C:\ZND\projects\modelwatch\SESSION_LOG.md`
-- `C:\ZND\projects\modelwatch\STATUS.md`
-- `C:\ZND\projects\modelwatch\results\results.ndjson`
-- `C:\ZND\projects\modelwatch\04_assets\hub_agent_update_2026-09-23_modelwatch_step_5_complete.md`
-- Step 5 implementation and private anchors under `C:\ZND\projects\modelwatch\src`,
-  `C:\ZND\projects\modelwatch\tests`, `C:\ZND\projects\modelwatch\config`, and
-  `C:\ZND\projects\modelwatch\tasks`.
+- `C:\ZND\50_projects\modelwatch\SESSION_LOG.md`
+- `C:\ZND\50_projects\modelwatch\STATUS.md`
+- `C:\ZND\50_projects\modelwatch\results\results.ndjson`
+- `C:\ZND\50_projects\modelwatch\04_assets\hub_agent_update_2026-09-23_modelwatch_step_5_complete.md`
+- Step 5 implementation and private anchors under `C:\ZND\50_projects\modelwatch\src`,
+  `C:\ZND\50_projects\modelwatch\tests`, `C:\ZND\50_projects\modelwatch\config`, and
+  `C:\ZND\50_projects\modelwatch\tasks`.

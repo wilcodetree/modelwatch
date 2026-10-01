@@ -23,7 +23,7 @@ judge (Claude Opus via `claude -p`, self-preference bias disclosed), one append-
 `results\weekly.ndjson`, one `reports\weekly.html` curve per area per harness and model, a
 Monday 06:00 scheduled task. No API roster, no Docker sandbox, no OpenRouter, plan usage only.
 Cowork joins as a manual paste column. The v0.1 Inspect run path is legacy, kept, not deleted.
-Spec `C:\ZND\projects\modelwatch\02_roadmap\2026-09-24_v0.2_light_spec.md`, prompts
+Spec `C:\ZND\50_projects\modelwatch\02_roadmap\2026-09-24_v0.2_light_spec.md`, prompts
 `2026-09-24_v0.2_session_prompts.md`, decisions `03_logs\decisions.md` 2026-09-24.
 
 **What did NOT happen.** No code changed on 2026-09-24. The 2026-09-23 run was not completed
